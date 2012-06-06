@@ -2,7 +2,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.feildmaster.client</groupId>
     <artifactId>SimpleNotice-Core</artifactId>
-    <version>1.2.5-1.0-SNAPSHOT</version>
+    <version>1.2.5-1.1-SNAPSHOT</version>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
@@ -23,9 +23,20 @@
         <dependency>
             <groupId>org.lwjgl.lwjgl</groupId>
             <artifactId>lwjgl</artifactId>
-            <version>2.8.0</version>
+            <version>2.8.3</version>
             <type>jar</type>
-            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>net.java.jinput</groupId>
+            <artifactId>jinput</artifactId>
+            <version>2.0.5</version>
+            <type>jar</type>
+        </dependency>
+        <dependency>
+            <groupId>org.lwjgl.lwjgl</groupId>
+            <artifactId>lwjgl_util</artifactId>
+            <version>2.8.3</version>
+            <type>jar</type>
         </dependency>
     </dependencies>
     <build>
