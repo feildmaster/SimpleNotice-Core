@@ -37,13 +37,11 @@ public final class NoticeGui {
     /**
      * Increase notice ticks
      */
-    public void tick(boolean update) {
+    public void tick() {
         // Don't attempt if we can't find minecraft
         if (getMinecraft() == null) return;
 
-        if (update) {
-            displayNotices();
-        }
+        displayNotices();
 
         for (int i = 0; i < notices.size(); i++) {
             notices.get(i).ticks++;
@@ -62,6 +60,9 @@ public final class NoticeGui {
     private void displayNotices() {
         // resolution, gamesettings, width, height
         //agd resolution = new agd(minecraft.A, minecraft.d, minecraft.e);
+
+        // They have F3 open... change position!
+        //boolean showDebug = getMinecraft().A.F;
 
         GL11.glPushMatrix();
         GL11.glScalef(0.75F, 0.8F, 1.0F);
