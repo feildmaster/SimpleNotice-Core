@@ -1,27 +1,41 @@
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.*;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import net.minecraft.client.Minecraft;
 import org.lwjgl.opengl.GL11;
 
 /* As much as I'd love to make this class work without ever updating, the lack of an API makes this impossible
  *
- * To demonstrate, the only class I hook into at the moment in the core:
+ * To demonstrate, the main class I hook into at the moment in the core:
  *  - FontRender (nl): Their functions, their class, the variable in which it's stored in (minecraft.q)... All of those can change.
  *      This can't be helped though, since the obfuscation will undoubtedly change these
  *      This is, however, simple to update, compared to a lot of other things
  */
 public final class NoticeGui {
     private final static NoticeGui instance = new NoticeGui();
+    private final static Logger logger = Logger.getLogger("NoticeGui");
 
     private final List<Notice> notices = new ArrayList<Notice>();
     private final double noticeTicks = 400D;
     private Minecraft minecraft;
     private boolean shade = true;
-    private int noticeLimit = 5;
+    private int limit = 5;
     private boolean attempted = false; // Flag for grabbing minecraft instance
     private boolean fade = true;
+    private int position = 0; // 0 = Top Left, 1 = Top Right, 2 = Bottom Right
 
-    private NoticeGui() {}
+    private NoticeGui() {
+        try {
+            loadProperties();
+        } catch(Exception ex) {
+            logger.log(Level.FINE, "Error occurred when loading properties: ", ex.getCause());
+        }
+    }
 
     /**
      * Add a new notice
@@ -44,12 +58,9 @@ public final class NoticeGui {
         displayNotices();
 
         for (int i = 0; i < notices.size(); i++) {
-            notices.get(i).ticks++;
-        }
-
-        // Newest notices take priority
-        while (notices.size() > noticeLimit) {
-            notices.remove(0);
+            if (notices.get(i).ticks++ > noticeTicks) {
+                notices.remove(i--);
+            }
         }
     }
 
@@ -58,30 +69,40 @@ public final class NoticeGui {
     }
 
     private void displayNotices() {
-        // resolution, gamesettings, width, height
-        //agd resolution = new agd(minecraft.A, minecraft.d, minecraft.e);
+        //resolution, gamesettings, width, height
+        agd resolution = new agd(minecraft.A, minecraft.d, minecraft.e);
+        int position = minecraft.A.F ? 2 : this.position;
 
-        // They have F3 open... change position!
-        //boolean showDebug = getMinecraft().A.F;
+        float scaleX = position > 0 ? resolution.a() : 0;
+        float scaleY = position > 1 ? resolution.b() - 8 : 0;
 
         GL11.glPushMatrix();
-        GL11.glScalef(0.75F, 0.8F, 1.0F);
+        GL11.glTranslatef(scaleX, scaleY, 0F);
+        GL11.glScalef(0.75F, 0.8F, 0.8F);
         GL11.glEnable(GL11.GL_BLEND);
-        for (int i = 0; i < notices.size() && i < noticeLimit; i++) {
-            // Get the notice
-            int index = notices.size() - 1 - i;
-            Notice notice = notices.get(index);
 
-            // Length of message
-            //int length = mod_notice.minecraft.q.b(null, i);
+        for (int i = 0; i < notices.size() && i < limit; i++) {
+            Notice notice = notices.get(notices.size() - 1 - i);
+
             // X Position
-            int x = 3;
+            int x;
+            if (position > 0) {
+                x = -minecraft.q.a(notice.message) - 3;
+            } else {
+                x = 3;
+            }
             // Y Position
-            int y = i * 8 + 8; // line * font_size + font_size + 3 ?
+            int y;
+            if (position > 1) {
+                y = -i * 9 - 3;
+            } else {
+                y = i * 9 + 3;
+            }
+
             // The transparency of the text, 256 = no transparency
             int alpha = 256;
 
-            if (this.fade) {
+            if (fade) {
                 double fade = (double) notice.ticks / noticeTicks;
                 fade = 1.0D - fade;
                 fade *= 10D;
@@ -101,13 +122,10 @@ public final class NoticeGui {
                 }
             }
 
-            // Scale size
             if (shade) {
-                // With Shadow
-                getMinecraft().q.a(notice.message, x, y, 0xFFFFFF + (alpha << 24));
+                minecraft.q.a(notice.message, x, y, 0xFFFFFF + (alpha << 24));
             } else {
-                // Without Shadow
-                getMinecraft().q.b(notice.message, x, y, 0xFFFFFF + (alpha << 24));
+                minecraft.q.b(notice.message, x, y, 0xFFFFFF + (alpha << 24));
             }
         }
         GL11.glDisable(GL11.GL_BLEND);
@@ -119,6 +137,7 @@ public final class NoticeGui {
             for (Field field : Minecraft.class.getDeclaredFields()) {
                 if (Minecraft.class.isAssignableFrom(field.getType())) {
                     try {
+                        field.setAccessible(true);
                         minecraft = (Minecraft) field.get(null);
                     } catch (Exception ex) {
                         attempted = true; // Don't try again
@@ -129,7 +148,7 @@ public final class NoticeGui {
         return minecraft;
     }
 
-    public static NoticeGui getInstance() {
+    public static NoticeGui get() {
         return instance;
     }
 
@@ -138,5 +157,95 @@ public final class NoticeGui {
             instance.minecraft = minecraft;
         }
         return instance;
+    }
+
+    private void loadProperties() throws IOException {
+        Properties properties = new Properties();
+        File config = new File(Minecraft.b(), "/config/SimpleNotice.properties");
+        // Create parent directories
+        if (config.getParentFile() != null) {
+            config.getParentFile().mkdirs();
+        }
+        // Load file
+        if (config.canRead()) {
+            properties.load(new FileInputStream(config));
+        }
+
+        int modified = 0;
+
+        StringBuilder comments = new StringBuilder();
+        addLine(comments,
+                "###########################",
+                "SimpleNotice Configuration",
+                "###########################");
+
+
+        addLine(comments, "",
+                "shade - Should text have shading?",
+                "    Default: true",
+                "    ----",
+                "    true: Text will be shaded",
+                "    false: Text will not be shaded");
+        if (properties.containsKey("shade")) {
+            shade = Boolean.valueOf(properties.getProperty("shade"));
+        } else {
+            properties.setProperty("shade", "true");
+            modified++;
+        }
+
+        addLine(comments, "",
+                "limit - Max amount of lines to display at once",
+                "    Default: 5",
+                "    Minimum: 4");
+        if (properties.containsKey("limit")) {
+            int value = Integer.valueOf(properties.getProperty("limit"));
+            if (value >= 4) {
+                limit = value;
+            } else {
+                properties.setProperty("limit", "5");
+                modified++;
+            }
+        } else {
+            properties.setProperty("limit", "5");
+            modified++;
+        }
+
+        addLine(comments, "",
+                "fade - Should text fade?",
+                "    Default: true",
+                "    ----",
+                "    true: Text will fade",
+                "    false: Text will not fade");
+        if (properties.containsKey("fade")) {
+            fade = Boolean.valueOf(properties.getProperty("fade"));
+        } else {
+            properties.setProperty("fade", "true");
+            modified++;
+        }
+
+        addLine(comments, "",
+                "position - The position of the notices",
+                "    Default: 0",
+                "    ----",
+                "    0: Top left",
+                "    1: Top right",
+                "    2: Bottom right",
+                "      - Automatically set when in debug mode");
+        if (properties.containsKey("position")) {
+            position = Integer.valueOf(properties.getProperty("position"));
+        } else {
+            properties.setProperty("position", "0");
+            modified++;
+        }
+
+        if (modified > 0) {
+            properties.store(new FileOutputStream(config), comments.toString());
+        }
+    }
+
+    private void addLine(StringBuilder comments, String... lines) {
+        for (String line : lines) {
+            comments.append(line == null ? "" : line).append("\n");
+        }
     }
 }
